@@ -1,0 +1,81 @@
+-- ============================================
+-- AUTO STEAL EGG - Roblox
+-- Dùng trong executor (Synapse, Krnl, Fluxus...)
+-- ============================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- ===== CẤU HÌNH =====
+local CONFIG = {
+    AutoSteal = true,        -- Tự động trộm
+    StealRange = 15,         -- Phạm vi trộm (studs)
+    TeleportSpeed = 100,     -- Tốc độ teleport
+    TargetName = "Egg",      -- Tên object cần trộm
+}
+
+-- ===== TÌM TRỨNG GẦN NHẤT =====
+local function findNearestEgg()
+    local nearest, minDist = nil, math.huge
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name:lower():find("egg") then
+            -- Bỏ qua trứng của chính mình
+            local owner = obj:FindFirstChild("Owner")
+            if owner and owner.Value == LocalPlayer then
+                continue
+            end
+            
+            local dist = (obj.Position - HumanoidRootPart.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                nearest = obj
+            end
+        end
+    end
+    
+    return nearest, minDist
+end
+
+-- ===== TELEPORT ĐẾN TRỨNG =====
+local function teleportTo(position)
+    if not Character or not Character.Parent then
+        Character = LocalPlayer.Character
+        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+    end
+    HumanoidRootPart.CFrame = CFrame.new(position + Vector3.new(0, 3, 0))
+end
+
+-- ===== VÒNG LẶP CHÍNH =====
+local stealing = false
+
+RunService.Heartbeat:Connect(function()
+    if not CONFIG.AutoSteal or stealing then return end
+    if not Character or not Character.Parent then return end
+    
+    local egg, dist = findNearestEgg()
+    if egg and dist < CONFIG.StealRange then
+        stealing = true
+        
+        -- Teleport đến trứng
+        teleportTo(egg.Position)
+        task.wait(0.1)
+        
+        -- Kích hoạt trộm (dùng ProximityPrompt nếu có)
+        local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
+        if prompt then
+            fireproximityprompt(prompt)
+        else
+            -- Fallback: click trực tiếp
+            egg:SetAttribute("Steal", true)
+        end
+        
+        task.wait(0.3)
+        stealing = false
+    end
+end)
+
+print("🥚 Auto Steal Egg đã bật!")
