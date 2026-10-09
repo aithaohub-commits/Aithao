@@ -1,0 +1,183 @@
+-- ============================================
+-- 🥚 GAME LẤY TRỘM TRỨNG
+-- ============================================
+ 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+ 
+-- Lấy vị trí đặt trứng
+local eggSpawn = workspace:WaitForChild("EggSpawn")
+ 
+-- ============================================
+-- CẤU HÌNH (có thể chỉnh sửa)
+-- ============================================
+local COOLDOWN = 3          -- Giây chờ giữa các lần nhặt
+local POINTS_PER_EGG = 10   -- Điểm cộng mỗi quả
+local EGG_RESPAWN_TIME = 2  -- Trứng hồi lại sau bao lâu
+local EGG_COLOR = Color3.fromRGB(255, 220, 80) -- Màu vàng
+ 
+-- Lưu dữ liệu người chơi
+local playerPoints = {}
+local playerCooldowns = {}
+ 
+-- Trứng hiện tại
+local currentEgg = nil
+ 
+-- ============================================
+-- TẠO QUẢ TRỨNG
+-- ============================================
+local function createEgg()
+    local egg = Instance.new("Part")
+    egg.Name = "Egg"
+    egg.Shape = Enum.PartType.Ball
+    egg.Size = Vector3.new(2, 2, 2)
+    egg.Color = EGG_COLOR
+    egg.Material = Enum.Material.Neon
+    egg.Anchored = true
+    egg.CanCollide = false
+    egg.Position = eggSpawn.Position
+ 
+    -- Hiệu ứng phát sáng
+    local light = Instance.new("PointLight")
+    light.Color = EGG_COLOR
+    light.Range = 10
+    light.Brightness = 3
+    light.Parent = egg
+ 
+    egg.Parent = workspace
+    return egg
+end
+ 
+-- ============================================
+-- XOAY TRỨNG (dùng CFrame)
+-- ============================================
+local function startSpinning(egg)
+    local angle = 0
+    local connection
+    connection = RunService.Heartbeat:Connect(function(dt)
+        if not egg.Parent then
+            connection:Disconnect()
+            return
+        end
+        angle = angle + math.rad(90) * dt
+        egg.CFrame = CFrame.new(eggSpawn.Position) * CFrame.Angles(0, angle, 0)
+    end)
+end
+ 
+-- ============================================
+-- HIỆU ỨNG CHỮ BAY LÊN
+-- ============================================
+local function showFloatingText(character, text)
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+ 
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Adornee = head
+    billboard.Parent = head
+ 
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = EGG_COLOR
+    label.TextStrokeTransparency = 0
+    label.TextScaled = true
+    label.Font = Enum.Font.GothamBold
+    label.Parent = billboard
+ 
+    game:GetService("Debris"):AddItem(billboard, 1.5)
+end
+ 
+-- ============================================
+-- TẠO TRỨNG VÀ GẮN SỰ KIỆN
+-- ============================================
+local function spawnEgg()
+    if currentEgg and currentEgg.Parent then return end
+ 
+    currentEgg = createEgg()
+    startSpinning(currentEgg)
+ 
+    local thisEgg = currentEgg
+ 
+    thisEgg.Touched:Connect(function(hit)
+        -- Kiểm tra trứng còn tồn tại không
+        if thisEgg ~= currentEgg then return end
+        if not thisEgg.Parent then return end
+ 
+        -- Tìm player từ part chạm
+        local character = hit:FindFirstAncestorOfClass("Model")
+        if not character then return end
+ 
+        local player = Players:GetPlayerFromCharacter(character)
+        if not player then return end
+ 
+        -- Kiểm tra cooldown
+        local now = os.clock()
+        if playerCooldowns[player] and now - playerCooldowns[player] < COOLDOWN then
+            return
+        end
+        playerCooldowns[player] = now
+ 
+        -- Cộng điểm
+        playerPoints[player] = (playerPoints[player] or 0) + POINTS_PER_EGG
+ 
+        -- Cập nhật leaderstats
+        local leaderstats = player:FindFirstChild("leaderstats")
+        if leaderstats then
+            local eggs = leaderstats:FindFirstChild("Eggs")
+            if eggs then
+                eggs.Value = eggs.Value + 1
+            end
+        end
+ 
+        -- Hiệu ứng chữ bay lên
+        showFloatingText(character, "+1 🥚")
+ 
+        print(player.Name .. " đã lấy trộm 1 quả trứng! Tổng: " .. playerPoints[player])
+ 
+        -- Xóa trứng và hồi lại
+        thisEgg:Destroy()
+        currentEgg = nil
+ 
+        task.wait(EGG_RESPAWN_TIME)
+        spawnEgg()
+    end)
+end
+ 
+-- ============================================
+-- LEADERSTATS (hiển thị điểm góc phải màn hình)
+-- ============================================
+local function setupLeaderstats(player)
+    local leaderstats = Instance.new("Folder")
+    leaderstats.Name = "leaderstats"
+    leaderstats.Parent = player
+ 
+    local eggs = Instance.new("IntValue")
+    eggs.Name = "Eggs"
+    eggs.Value = 0
+    eggs.Parent = leaderstats
+ 
+    playerPoints[player] = 0
+end
+ 
+Players.PlayerAdded:Connect(setupLeaderstats)
+ 
+-- Xử lý người chơi đã ở trong game (khi test)
+for _, player in ipairs(Players:GetPlayers()) do
+    if not player:FindFirstChild("leaderstats") then
+        setupLeaderstats(player)
+    end
+end
+ 
+Players.PlayerRemoving:Connect(function(player)
+    playerPoints[player] = nil
+    playerCooldowns[player] = nil
+end)
+ 
+-- ============================================
+-- KHỞI ĐỘNG GAME
+-- ============================================
+spawnEgg()
+print("🥚 Game 'Lấy Trộm Trứng' đã khởi động!")
